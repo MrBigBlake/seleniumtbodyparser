@@ -9,15 +9,13 @@ class Tbody:
         self.init_tbody()
 
     def init_tbody(self):
-        rows = []
         if self.selector:
             tbody_element = PyQuery(self.outer_html)
             row_elements = tbody_element.find("tr").items()
             for row_index, row_element in enumerate(row_elements):
                 row_selector = self.selector + f"> tr:nth-child({row_index + 1})"
                 row = Row(row_element, row_selector)
-                rows.append(row)
-        self.rows = rows
+                self.rows.append(row)
 
     @property
     def length(self):
@@ -37,6 +35,9 @@ class Tbody:
 
     def get_inner_tbody(self, *args):
         """
+        根据列索引和文本内容定位
+        一对限制条件: get_inner_tbody(2, "alpha") or get_inner_tbody({2: "alpha"}
+        多对限制条件: get_inner_tbody({1: "alpha", 2: "bravo"})
         :param args:
         :return:
         """
@@ -52,6 +53,9 @@ class Tbody:
 
     def get_inner_tbody_fuzzy(self, *args):
         """
+        根据列索引和文本内容定位(模糊匹配)
+        一对限制条件: get_inner_tbody(2, "alpha") or get_inner_tbody({2: "alpha"}
+        多对限制条件: get_inner_tbody({1: "alpha", 2: "bravo"})
         :param args:
         :return:
         """
@@ -65,17 +69,17 @@ class Tbody:
             tbody = self._get_inner_tbody_single(args[1], args[0], fuzzy=True)
         return tbody
 
-    def _get_inner_tbody_single(self, cell_text, cell_index, fuzzy=False):
+    def _get_inner_tbody_single(self, index, text, fuzzy=False):
         """
-        :param cell_text:
-        :param cell_index:
+        :param index:
+        :param text:
         :param fuzzy:
         :return:
         """
         rows = []
         for row in self.rows:
-            flag = row.target_cell_text_contains(cell_index, cell_text) \
-                if fuzzy else row.target_cell_text_equals(cell_index, cell_text)
+            flag = row.target_cell_text_contains(index, text) \
+                if fuzzy else row.target_cell_text_equals(index, text)
             if flag:
                 rows.append(row)
         tbody = Tbody(selector="", outer_html="")
@@ -84,8 +88,8 @@ class Tbody:
 
     def _get_inner_tbody_multiple(self, cells: dict, fuzzy=False):
         """
-        :param cells: {0: "xxx", 1: "xxx"}
-        :param fuzzy: 是否模糊匹配
+        :param cells:
+        :param fuzzy:
         :return:
         """
         rows = []
@@ -103,18 +107,18 @@ class Tbody:
         tbody.rows = rows
         return tbody
 
-    def get_target_col_cell_texts(self, col_index: int) -> list:
+    def get_target_col_text_list(self, col_index: int) -> list:
         """
         获取某一列所有单元格的值
         :param col_index: 第几列, 从0开始
         :return:
         """
-        cell_texts = []
+        text_list = []
         for row in self.rows:
             if row.length >= col_index + 1:
                 cell_text = row.cells[col_index].text
-                cell_texts.append(cell_text)
-        return cell_texts
+                text_list.append(cell_text)
+        return text_list
 
     def remove_invisible_rows(self):
         """
@@ -138,7 +142,6 @@ class Row:
         self.init_row()
 
     def init_row(self):
-        cells = []
         cell_elements = list(self.row_element.find("td").items())
         cell_elements_th = list(self.row_element.find("th").items())
         # 有的表单第一行是 tr > th, 这里做一个兼容
@@ -150,8 +153,7 @@ class Row:
         for cell_index, cell_element in enumerate(cell_elements):
             cell_selector = self.selector + f"> {td}:nth-child({cell_index + 1})"
             cell = Cell(cell_element, cell_selector)
-            cells.append(cell)
-        self.cells = cells
+            self.cells.append(cell)
 
     def _target_cell_text_equals(self, index, text):
         """
