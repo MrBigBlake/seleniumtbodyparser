@@ -1,6 +1,24 @@
 from pyquery import PyQuery
 
 
+class Parser:
+    def __init__(self, driver):
+        """
+        :param driver: selenium webdriver object
+        """
+        self.driver = driver
+
+    def parse(self, tbody_selector):
+        """
+        parse tbody and return a Tbody object
+        :param tbody_selector: css selector of tbody element
+        :return: a Tbody object
+        """
+        outer_html = self.driver.find_element_by_css_selector(tbody_selector).get_attribute("outerHTML")
+        tbody = Tbody(tbody_selector, outer_html)
+        return tbody
+
+
 class Tbody:
     def __init__(self, selector, outer_html):
         self.selector = selector
@@ -35,11 +53,11 @@ class Tbody:
 
     def get_inner_tbody(self, *args):
         """
-        根据列索引和文本内容定位
-        一对限制条件: get_inner_tbody(2, "alpha") or get_inner_tbody({2: "alpha"}
-        多对限制条件: get_inner_tbody({1: "alpha", 2: "bravo"})
+        get inner tbody by column index and text and return a Tbody object
+        a pair of restrictions: get_inner_tbody(0, "alpha") or get_inner_tbody({0: "alpha"}
+        multiple pairs of restrictions: get_inner_tbody({0: "alpha", 1: "bravo"})
         :param args:
-        :return:
+        :return: a Tbody object
         """
         assert 0 < len(args) <= 2
         if len(args) == 1:
@@ -48,16 +66,16 @@ class Tbody:
         else:
             assert isinstance(args[0], int)
             assert isinstance(args[1], str)
-            tbody = self._get_inner_tbody_single(args[1], args[0])
+            tbody = self._get_inner_tbody_single(args[0], args[1])
         return tbody
 
     def get_inner_tbody_fuzzy(self, *args):
         """
-        根据列索引和文本内容定位(模糊匹配)
-        一对限制条件: get_inner_tbody(2, "alpha") or get_inner_tbody({2: "alpha"}
-        多对限制条件: get_inner_tbody({1: "alpha", 2: "bravo"})
+        get inner tbody by column index and text (fuzzy match) and return a Tbody object
+        a pair of restrictions: get_inner_tbody(0, "alpha") or get_inner_tbody({0: "alpha"}
+        multiple pairs of restrictions: get_inner_tbody({0: "alpha", 1: "bravo"})
         :param args:
-        :return:
+        :return: a Tbody object
         """
         assert 0 < len(args) <= 2
         if len(args) == 1:
@@ -66,16 +84,10 @@ class Tbody:
         else:
             assert isinstance(args[0], int)
             assert isinstance(args[1], str)
-            tbody = self._get_inner_tbody_single(args[1], args[0], fuzzy=True)
+            tbody = self._get_inner_tbody_single(args[0], args[1], fuzzy=True)
         return tbody
 
     def _get_inner_tbody_single(self, index, text, fuzzy=False):
-        """
-        :param index:
-        :param text:
-        :param fuzzy:
-        :return:
-        """
         rows = []
         for row in self.rows:
             flag = row.target_cell_text_contains(index, text) \
@@ -87,11 +99,6 @@ class Tbody:
         return tbody
 
     def _get_inner_tbody_multiple(self, cells: dict, fuzzy=False):
-        """
-        :param cells:
-        :param fuzzy:
-        :return:
-        """
         rows = []
         for row in self.rows:
             flag1 = True
@@ -108,11 +115,6 @@ class Tbody:
         return tbody
 
     def get_target_col_text_list(self, col_index: int) -> list:
-        """
-        获取某一列所有单元格的值
-        :param col_index: 第几列, 从0开始
-        :return:
-        """
         text_list = []
         for row in self.rows:
             if row.length >= col_index + 1:
@@ -121,10 +123,6 @@ class Tbody:
         return text_list
 
     def remove_invisible_rows(self):
-        """
-        移除不可见的行
-        :return:
-        """
         for row in self.rows:
             row_element = row.row_element
             style = row_element.attr("style")
@@ -144,7 +142,6 @@ class Row:
     def init_row(self):
         cell_elements = list(self.row_element.find("td").items())
         cell_elements_th = list(self.row_element.find("th").items())
-        # 有的表单第一行是 tr > th, 这里做一个兼容
         if not cell_elements and cell_elements_th:
             cell_elements = cell_elements_th
             td = "th"
@@ -155,24 +152,14 @@ class Row:
             cell = Cell(cell_element, cell_selector)
             self.cells.append(cell)
 
-    def _target_cell_text_equals(self, index, text):
-        """
-        :param index:
-        :param text:
-        :return:
-        """
+    def target_cell_text_equals(self, index, text):
         if self.length >= index + 1:
             cell = self.cells[index]
             if text == cell.text:
                 return True
         return False
 
-    def _target_cell_text_contains(self, index, text):
-        """
-        :param index:
-        :param text:
-        :return:
-        """
+    def target_cell_text_contains(self, index, text):
         if self.length >= index + 1:
             cell = self.cells[index]
             if text in cell.text:
@@ -200,7 +187,6 @@ class Cell:
 
     def init_cell(self):
         text = self.cell_element.text()
-        # 适配 td > input
         if not text:
             input_element = self.cell_element.find("input")
             if input_element:
