@@ -35,6 +35,9 @@ class Tbody:
                 row = Row(row_element, row_selector)
                 self.rows.append(row)
 
+    def __getitem__(self, item):
+        return self.rows[item]
+
     @property
     def length(self):
         return len(self.rows)
@@ -151,6 +154,9 @@ class Row:
             cell_selector = self.selector + f"> {td}:nth-child({cell_index + 1})"
             cell = Cell(cell_element, cell_selector)
             self.cells.append(cell)
+
+    def __getitem__(self, item):
+        return self.cells[item]
 
     def target_cell_text_equals(self, index, text):
         if self.length >= index + 1:
