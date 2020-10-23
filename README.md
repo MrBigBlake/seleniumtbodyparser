@@ -97,4 +97,3 @@ for row in book_tbody.rows:
 3, Kindle, 电纸书, 999, 1
 4, 三体, 纸质书, 99, 1
 ```
-

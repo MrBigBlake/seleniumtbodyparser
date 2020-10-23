@@ -126,13 +126,15 @@ class Tbody:
         return text_list
 
     def remove_invisible_rows(self):
+        rows = []
         for row in self.rows:
             row_element = row.row_element
             style = row_element.attr("style")
-            if not style:
-                continue
-            if "display" in style or "hidden" in style:
-                self.rows.remove(row)
+            if style:
+                if "display" in style or "hidden" in style:
+                    continue
+            rows.append(row)
+        self.rows = rows
 
 
 class Row:
