@@ -1,152 +1,126 @@
+from typing import List, NoReturn
 from pyquery import PyQuery
 
 
-class Parser:
-    def __init__(self, driver):
-        """
-        :param driver: selenium webdriver object
-        """
-        self.driver = driver
-
-    def parse(self, tbody_selector):
-        """
-        parse tbody and return a Tbody object
-        :param tbody_selector: css selector of tbody element
-        :return: a Tbody object
-        """
-        outer_html = self.driver.find_element_by_css_selector(tbody_selector).get_attribute("outerHTML")
-        tbody = Tbody(tbody_selector, outer_html)
-        return tbody
-
-
 class Tbody:
-    def __init__(self, selector, outer_html):
+
+    __slots__ = ("selector", "element", "rows")
+
+    def __init__(self, selector: str = None, element: PyQuery = None):
         self.selector = selector
-        self.outer_html = outer_html
+        self.element = element
         self.rows = []
-        self.init_tbody()
+        row_elements = self.element.find("tr").items() if self.element else []
+        for row_index, row_element in enumerate(row_elements):
+            row_selector = self.selector + f"> tr:nth-child({row_index + 1})"
+            row = Row(row_selector, row_element)
+            self.rows.append(row)
 
-    def init_tbody(self):
-        if self.selector:
-            tbody_element = PyQuery(self.outer_html)
-            row_elements = tbody_element.find("tr").items()
-            for row_index, row_element in enumerate(row_elements):
-                row_selector = self.selector + f"> tr:nth-child({row_index + 1})"
-                row = Row(row_element, row_selector)
-                self.rows.append(row)
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            new_tbody = Tbody()
+            new_tbody.rows = self.rows[index]
+            return new_tbody
+        elif isinstance(index, int):
+            return self.rows[index]
+        else:
+            raise TypeError("Tbody indices must be integers")
 
-    def __getitem__(self, item):
-        return self.rows[item]
-
-    @property
-    def length(self):
+    def __len__(self):
         return len(self.rows)
 
-    @property
-    def is_empty(self):
-        return self.length == 0
+    def __iadd__(self, other):
+        self.rows.extend(other.rows)
+        return self
 
-    @property
-    def has_no_data(self):
-        if self.is_empty:
-            return True
-        if self.rows[-1].length <= 1:
-            return True
+    def __repr__(self):
+        return "\n".join([repr(row) for row in self.rows])
+
+    def __bool__(self):
+        if not len(self.rows):
+            return False
+        # return False if the length of the last row lte 1
+        if len(self.rows[-1]) <= 1:
+            return False
+        return True
+
+    def __contains__(self, item):
+        for row in self.rows:
+            if item in row:
+                return True
         return False
 
-    def get_inner_tbody(self, *args):
+    def get_tbody_with_matched_rows(self, *args, **kwargs):
         """
-        get inner tbody by column index and text and return a Tbody object
-        a pair of restrictions: get_inner_tbody(0, "alpha") or get_inner_tbody({0: "alpha"}
-        multiple pairs of restrictions: get_inner_tbody({0: "alpha", 1: "bravo"})
+        get_tbody_with_matched_rows by column index and text and return a Tbody object
+        * a pair of restrictions:
+            `get_tbody_with_matched_rows(0, "alpha")` or `get_tbody_with_matched_rows({0: "alpha"})`
+        * multiple pairs of restrictions:
+            `get_tbody_with_matched_rows({0: "alpha", 1: "bravo"})`
+        * a pair of restrictions with fuzzy search:
+            `get_tbody_with_matched_rows(0, "alpha", fuzzy=True)`
         :param args:
         :return: a Tbody object
         """
-        assert 0 < len(args) <= 2
-        if len(args) == 1:
-            assert isinstance(args[0], dict)
-            tbody = self._get_inner_tbody_multiple(args[0])
+        if not args:
+            raise TypeError("expected at least one positional argument")
+        elif len(args) > 2:
+            raise TypeError(f"expected at most 2 positional arguments, got {len(args)}")
+        elif len(args) == 1:
+            assert isinstance(args[0], dict), f"Invalid argument, {args[0]!r} is not a dict"
+            param_dict = args[0]
         else:
-            assert isinstance(args[0], int)
-            assert isinstance(args[1], str)
-            tbody = self._get_inner_tbody_single(args[0], args[1])
-        return tbody
-
-    def get_inner_tbody_fuzzy(self, *args):
-        """
-        get inner tbody by column index and text (fuzzy match) and return a Tbody object
-        a pair of restrictions: get_inner_tbody(0, "alpha") or get_inner_tbody({0: "alpha"}
-        multiple pairs of restrictions: get_inner_tbody({0: "alpha", 1: "bravo"})
-        :param args:
-        :return: a Tbody object
-        """
-        assert 0 < len(args) <= 2
-        if len(args) == 1:
-            assert isinstance(args[0], dict)
-            tbody = self._get_inner_tbody_multiple(args[0], fuzzy=True)
-        else:
-            assert isinstance(args[0], int)
-            assert isinstance(args[1], str)
-            tbody = self._get_inner_tbody_single(args[0], args[1], fuzzy=True)
-        return tbody
-
-    def _get_inner_tbody_single(self, index, text, fuzzy=False):
+            assert isinstance(args[0], int), f"Invalid argument, {args[0]!r} is not a int"
+            assert isinstance(args[1], str), f"Invalid argument, {args[1]!r} is not a str"
+            param_dict = {args[0]: args[1]}
+        fuzzy = kwargs.get("fuzzy")  # fuzzy search or not
         rows = []
         for row in self.rows:
-            flag = row.target_cell_text_contains(index, text) \
-                if fuzzy else row.target_cell_text_equals(index, text)
-            if flag:
-                rows.append(row)
-        tbody = Tbody(selector="", outer_html="")
-        tbody.rows = rows
-        return tbody
-
-    def _get_inner_tbody_multiple(self, cells: dict, fuzzy=False):
-        rows = []
-        for row in self.rows:
-            flag1 = True
-            for cell_index, cell_text in cells.items():
-                flag2 = row.target_cell_text_contains(cell_index, cell_text) \
-                    if fuzzy else row.target_cell_text_equals(cell_index, cell_text)
-                if not flag2:
-                    flag1 = False
+            row_matched = True
+            for index, text in param_dict.items():
+                cell_matched = row.is_target_cell_text_contains(index, text) if fuzzy \
+                    else row.is_target_cell_text_equals(index, text)
+                if not cell_matched:
+                    row_matched = False
                     break
-            if flag1:
-                rows.append(row)
-        tbody = Tbody(selector="", outer_html="")
+            if not row_matched:
+                continue
+            rows.append(row)
+        tbody = Tbody()
         tbody.rows = rows
         return tbody
 
-    def get_target_col_text_list(self, col_index: int) -> list:
+    def get_target_column_text_list(self, index: int) -> List[str]:
         text_list = []
         for row in self.rows:
-            if row.length >= col_index + 1:
-                cell_text = row.cells[col_index].text
+            try:
+                cell_text = row.cells[index].text
                 text_list.append(cell_text)
+            except IndexError:
+                continue
         return text_list
 
-    def remove_invisible_rows(self):
+    def remove_invisible_rows(self) -> NoReturn:
         rows = []
         for row in self.rows:
-            row_element = row.row_element
+            row_element = row.element
             style = row_element.attr("style")
-            if style:
-                if "display" in style or "hidden" in style:
-                    continue
+            if style and ("display" in style or "hidden" in style):
+                continue
             rows.append(row)
         self.rows = rows
 
 
 class Row:
-    def __init__(self, row_element, row_selector):
-        self.row_element = row_element
-        self.selector = row_selector
-        self.cells = []
-        self.init_row()
 
-    def init_row(self):
-        cell_elements = list(self.row_element.find("td").items())
-        cell_elements_th = list(self.row_element.find("th").items())
+    __slots__ = ("selector", "element", "cells")
+
+    def __init__(self, selector: str = None, element: PyQuery = None):
+        self.selector = selector
+        self.element = element
+        self.cells = []
+        cell_elements = list(self.element.find("td").items()) if self.element else []
+        cell_elements_th = list(self.element.find("th").items()) if self.element else []
         if not cell_elements and cell_elements_th:
             cell_elements = cell_elements_th
             td = "th"
@@ -154,53 +128,76 @@ class Row:
             td = "td"
         for cell_index, cell_element in enumerate(cell_elements):
             cell_selector = self.selector + f"> {td}:nth-child({cell_index + 1})"
-            cell = Cell(cell_element, cell_selector)
+            cell = Cell(cell_selector, cell_element)
             self.cells.append(cell)
 
-    def __getitem__(self, item):
-        return self.cells[item]
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            new_row = Row()
+            new_row.cells = self.cells[index]
+            return new_row
+        elif isinstance(index, int):
+            return self.cells[index]
+        else:
+            raise TypeError("Row indices must be integers")
 
-    def target_cell_text_equals(self, index, text):
-        if self.length >= index + 1:
+    def __len__(self):
+        return len(self.cells)
+
+    def __iadd__(self, other):
+        self.cells.extend(other.cells)
+        return self
+
+    def __repr__(self):
+        return ", ".join([cell.text for cell in self.cells])
+
+    def __contains__(self, item):
+        return item in [cell.text for cell in self.cells]
+
+    def is_target_cell_text_equals(self, index: int, text: str) -> bool:
+        try:
             cell = self.cells[index]
             if text == cell.text:
                 return True
-        return False
+            return False
+        except IndexError:
+            return False
 
-    def target_cell_text_contains(self, index, text):
-        if self.length >= index + 1:
+    def is_target_cell_text_contains(self, index: int, text: str) -> bool:
+        try:
             cell = self.cells[index]
-            if text in cell.text:
+            if text in cell:
                 return True
-        return False
-
-    @property
-    def length(self):
-        return len(self.cells)
-
-    @property
-    def is_empty(self):
-        return self.length == 0
-
-    def __str__(self):
-        return ", ".join([cell.text for cell in self.cells])
+            return False
+        except IndexError:
+            return False
 
 
 class Cell:
-    def __init__(self, cell_element, cell_selector):
-        self.cell_element = cell_element
-        self.selector = cell_selector
-        self.text = ""
-        self.init_cell()
+    
+    __slots__ = ("selector", "element", "text")
 
-    def init_cell(self):
-        text = self.cell_element.text()
-        if not text:
-            input_element = self.cell_element.find("input")
-            if input_element:
-                text = input_element.attr("value")
-                self.selector = self.selector + "> input:nth-child(1)"
-        self.text = text.strip().replace("\n", "") if text else ""
+    def __init__(self, selector: str = None, element: PyQuery = None):
+        self.selector = selector
+        self.element = element
+        self.text = self.element.text() if self.element else ""
+        if not self.text and self.element:
+            input_elements = list(self.element.find("input").items())
+            for index, input_element in enumerate(input_elements):
+                style = input_element.attr("style")
+                # ignore invisible input element
+                if style and ("display" in style or "hidden" in style):
+                    continue
+                self.text = input_element.attr("value")
+                self.selector = self.selector + f"> input:nth-child({index + 1})"
+                break
+        self.text = self.text.strip().replace("\n", "") if self.text else ""
 
-    def __str__(self):
-        return self.text
+    def __repr__(self):
+        return self.text[:20]
+
+    def __len__(self):
+        return len(self.text)
+
+    def __contains__(self, item):
+        return item in self.text
