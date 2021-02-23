@@ -1,4 +1,4 @@
-from typing import List, NoReturn
+from typing import List
 from pyquery import PyQuery
 
 
@@ -50,20 +50,16 @@ class Tbody:
                 return True
         return False
 
-    def get_tbody_with_matched_rows(self, *args, **kwargs):
-        """
-        get_tbody_with_matched_rows by column index and text and return a Tbody object
-        * a pair of restrictions:
-            `get_tbody_with_matched_rows(0, "alpha")` or `get_tbody_with_matched_rows({0: "alpha"})`
-        * multiple pairs of restrictions:
-            `get_tbody_with_matched_rows({0: "alpha", 1: "bravo"})`
-        * a pair of restrictions with fuzzy search:
-            `get_tbody_with_matched_rows(0, "alpha", fuzzy=True)`
-        :param args:
-        :return: a Tbody object
+    def get_matched_child_tbody(self, *args, **kwargs):
+        """Get child tbody with matched rows.
+
+        If no positional argument is given, return self directly.
+
+        Usage:
+            child_tbody = tbody.get_matched_child_tbody(0, "alpha")
         """
         if not args:
-            raise TypeError("expected at least one positional argument")
+            return self
         elif len(args) > 2:
             raise TypeError(f"expected at most 2 positional arguments, got {len(args)}")
         elif len(args) == 1:
@@ -100,7 +96,7 @@ class Tbody:
                 continue
         return text_list
 
-    def remove_invisible_rows(self) -> NoReturn:
+    def remove_invisible_rows(self) -> None:
         rows = []
         for row in self.rows:
             row_element = row.element

@@ -11,7 +11,6 @@ seleniumtbodyparser is a tool to parse web table body based on pyquery
 pip install seleniumtbodyparser
 ```
 # Usage
-
 ```python
 from selenium import webdriver
 from seleniumtbodyparser import parse

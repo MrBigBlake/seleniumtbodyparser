@@ -3,9 +3,9 @@ selenium web table body parser based on pyquery
 """
 from pyquery import PyQuery
 from selenium.webdriver.remote.webdriver import WebDriver
-from .parser import Tbody
+from .base import Tbody
 
-__version__ = "1.0.1"
+__version__ = "1.0.3"
 __date__ = "2021-01-26"
 __author__ = "MrBigB"
 
@@ -39,12 +39,18 @@ __all__ = ["parse"]
 def parse(tbody_selector: str,
           driver: WebDriver = None,
           page_source: str = None) -> Tbody:
-    """
-    parse tbody and return a Tbody object
-    :param tbody_selector: css selector of target tbody element
-    :param driver: selenium web driver object
-    :param page_source: parse tbody directly from page_source when page_source is given
-    :return: a Tbody object
+    """Parse web table body.
+
+    Args:
+        tbody_selector: css selector of target tbody element.
+        driver: selenium web driver.
+        page_source: parse tbody directly from page_source when given.
+
+    Returns:
+        a Tbody object.
+
+    Usage:
+        tbody = parse(tbody_selector="#tbody", driver=driver)
     """
     if not (driver or page_source):
         raise TypeError("expected at least one of these two arguments: 'driver', 'page_source'")
